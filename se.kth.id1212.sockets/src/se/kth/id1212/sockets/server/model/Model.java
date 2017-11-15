@@ -21,8 +21,6 @@ import se.kth.id1212.sockets.common.Constants;
 public class Model {
     
     private final String WORDS_FILE = Constants.WORD_FILE_LOCATION;
-    private String word;
-    private int score = 0;
     private ArrayList<String> words;
     private List<String> guesses;
     
@@ -42,43 +40,54 @@ public class Model {
     private void indexWords(BufferedReader reader) {
         words = new ArrayList();
         try {
-            String word = reader.readLine();
-            while (word != null) {
-                words.add(word);
+            String word;
+            do {
                 word = reader.readLine();
-            }
-            newWord();
+                words.add(word);
+            } while (word != null);
         } catch (IOException ex) {
            ex.printStackTrace();
         }
     }
     
-    private void newWord() {
+    public String getWord() {
         int index = (int) (Math.random() * words.size());
-        word = words.get(index);
+        return words.get(index);
     }
     
-    private String guessChar(String s) {
-        if (word.contains(s)) {
-            
+    private String replaceAll(char letter, String word, String current) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < word.length(); i++) {
+            if (word.charAt(i) == letter) {
+                sb.append(word.charAt(i));
+            } else {
+                sb.append(current.charAt(i));
+            }
         }
-        return null;
+        return sb.toString();
     }
     
-    private String guessWord(String s) {
-        return null;
+    private String guessChar(String word, String guess, String hidden) {
+        String newHidden = hidden;
+        if (word.contains(guess)) {
+            newHidden = replaceAll(guess.charAt(0), word, hidden);
+        }
+        return newHidden;
     }
     
-    public String processGuess(String guess) {
-        
-        return "hello";
-        /*if (guess.length() == 1) {
-            return guessChar(guess);
+    private String guessWord(String word, String guess, String hidden) {
+        if (word.equals(guess)) 
+                return word;
+        else    return hidden;
+    }
+    
+    public String processGuess(String guess, String word, String hidden) {
+        if (guess.length() == 1) {
+            return guessChar(word, guess, hidden);
         } else if (guess.length() == word.length()) {
-            return guessWord(guess);
+            return guessWord(word, guess, hidden);
         } else {
-            
+            return "GUESS: " + guess;
         }
-        return null;*/
     }
 }

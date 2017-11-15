@@ -21,27 +21,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package se.kth.id1212.sockets.common;
+package se.kth.id1212.sockets.client.net;
 
 /**
- *
- * @author Perttu Jääskeläinen
+ * Handles broadcast messages from server.
  */
-public enum MsgType {
+public interface OutputHandler {
     /**
-     * Response from server to user, received through listener
+     * Called when a broadcast message from the server has been received. That message originates
+     * from one of the clients.
+     *
+     * @param msg The message from the server.
      */
-    RESPONSE,
-    /**
-     * Entered when guessing a word, for examle: GUESS abc
-     */
-    GUESS,
-    /**
-     * Entered when the user wants to guess a new word
-     */
-    NEWWORD,
-    /**
-     * Entered to disconnect the client
-     */
-    DISCONNECT;
+    public void handleMsg(String msg);
 }

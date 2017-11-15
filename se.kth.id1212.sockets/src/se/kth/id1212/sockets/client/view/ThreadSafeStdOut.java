@@ -21,27 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package se.kth.id1212.sockets.common;
+package se.kth.id1212.sockets.client.view;
 
 /**
- *
- * @author Perttu Jääskeläinen
+ * This class provides a thread safe output, all methods are synchronized. 
  */
-public enum MsgType {
+class ThreadSafeStdOut {
     /**
-     * Response from server to user, received through listener
+     * Prints the specified output to <code>System.out</code>,
+     * 
+     * @param output The output to print. 
      */
-    RESPONSE,
+    synchronized void print(String output) {
+        System.out.print(output);
+    }
+
     /**
-     * Entered when guessing a word, for examle: GUESS abc
+     * Prints the specified output, plus a line break, to <code>System.out</code>,
+     * 
+     * @param output The output to print. 
      */
-    GUESS,
-    /**
-     * Entered when the user wants to guess a new word
-     */
-    NEWWORD,
-    /**
-     * Entered to disconnect the client
-     */
-    DISCONNECT;
+    synchronized void println(String output) {
+        System.out.println(output);
+    }
 }

@@ -35,7 +35,7 @@ public class Constants {
     /**
      * Separates a message type specifier from the message body.
      */
-    public static final String MSG_DELIMETER = "##";
+    public static final String MSG_DELIMETER = "\\s+";
     /**
      * The message type specifier is the first token in a message.
      */
@@ -48,4 +48,12 @@ public class Constants {
      * Location of words for hangman game
      */
     public static final String WORD_FILE_LOCATION = "C:\\Users\\pertt\\Documents\\GitHub\\Network-Programming\\se.kth.id1212.sockets\\src\\se\\kth\\id1212\\sockets\\common\\words.txt";
+    /**
+     * Index for message types
+     */
+    public static final int COMMAND_INDEX = 0;
+    /**
+     * Index for message/command
+     */
+    public static final int MESSAGE_INDEX = 1;
 }

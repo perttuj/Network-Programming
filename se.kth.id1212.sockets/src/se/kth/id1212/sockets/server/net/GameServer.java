@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package se.kth.id1212.sockets.server.net;
 
 import java.io.IOException;
@@ -16,7 +11,7 @@ import se.kth.id1212.sockets.server.controller.Controller;
  *
  * @author Perttu Jääskeläinen
  */
-public class Server {
+public class GameServer {
     
     private int         PORT_NO         = 8080;     // default port number
     private final int   LINGER_TIME     = 10000;    // linger time when closing socket
@@ -24,7 +19,7 @@ public class Server {
     private final Controller contr = new Controller();
     
     public static void main (String[] args) {
-        Server server = new Server();
+        GameServer server = new GameServer();
         server.parseArgs(args);
         server.serve();
     }
@@ -34,25 +29,29 @@ public class Server {
         try {
             ServerSocket server = new ServerSocket(PORT_NO);
             while (true) {
-                Socket client = server.accept();
-                startHandler(client);
+                Socket playerSocket = server.accept();
+                startGame(playerSocket);
             }
         } catch (IOException e) {
             System.out.println("Error when creating server socket with port: " + PORT_NO);
         }    
     }
     
-    public String guess(String guess) {
-        return contr.processGuess(guess);
+    String guess(String guess, String word, String hidden) {
+        return contr.processGuess(guess, word, hidden);
     }
     
-    private void startHandler(Socket client) throws SocketException {
-        client.setSoLinger(true, LINGER_TIME);
-        client.setSoTimeout(SOCKET_TIMEOUT);
-        ClientHandler handler = new ClientHandler(this, client);
-        Thread clientThread = new Thread(handler);
-        clientThread.setPriority(Thread.MAX_PRIORITY);
-        clientThread.run();
+    String getWord() {
+        return contr.getWord();
+    }
+    
+    private void startGame(Socket player) throws SocketException {
+        player.setSoLinger(true, LINGER_TIME);
+        player.setSoTimeout(SOCKET_TIMEOUT);
+        PlayerHandler handler = new PlayerHandler(this, player);
+        Thread playerThread = new Thread(handler);
+        playerThread.setPriority(Thread.MAX_PRIORITY);
+        playerThread.run();
     }
     
     public void parseArgs(String[] args) {

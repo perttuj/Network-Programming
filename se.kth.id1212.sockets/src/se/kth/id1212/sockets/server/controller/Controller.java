@@ -19,7 +19,11 @@ public class Controller {
         this.model = new Model();
     }
     
-    public String processGuess(String guess) {
-        return model.processGuess(guess);
+    public String getWord() {
+        return model.getWord();
+    }
+    
+    public String processGuess(String guess, String word, String hidden) {
+        return model.processGuess(guess, word, hidden);
     }
 }
