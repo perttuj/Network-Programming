@@ -1,4 +1,4 @@
-package sockets.client.view;
+package client.view;
 
 /**
  * Class for handling thread safe output (all methods are synchronized)

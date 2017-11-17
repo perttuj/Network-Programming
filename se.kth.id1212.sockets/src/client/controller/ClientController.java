@@ -1,10 +1,10 @@
-package sockets.client.controller;
+package client.controller;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.concurrent.CompletableFuture;
-import sockets.client.net.ServerConnection;
-import sockets.client.net.ResponseHandler;
+import client.net.ServerConnection;
+import client.net.ResponseHandler;
 
 /**
  * ClientController used by all users for communicating with the server

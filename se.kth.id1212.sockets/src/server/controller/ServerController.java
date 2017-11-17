@@ -1,6 +1,6 @@
-package sockets.server.controller;
+package server.controller;
 
-import sockets.server.model.WordLogic;
+import server.model.WordLogic;
 
 /**
  *  ServerController used by classes in the server 'net' layer to communicate with the

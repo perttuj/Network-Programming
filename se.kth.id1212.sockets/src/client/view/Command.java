@@ -1,4 +1,4 @@
-package sockets.client.view;
+package client.view;
 /**
  * Defines all commands that can be performed by a user of the hangman game.
  * Also includes an description which is printed out when starting the program

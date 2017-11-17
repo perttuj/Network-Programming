@@ -1,6 +1,6 @@
-package sockets.client.startup;
+package client.startup;
 
-import sockets.client.view.UserInterpreter;
+import client.view.UserInterpreter;
 /**
  * class for starting a clientside view of the hangman game
  * @author Perttu Jääskeläinen

@@ -1,4 +1,4 @@
-package sockets.client.net;
+package client.net;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -6,8 +6,8 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import sockets.common.Constants;
-import sockets.common.ServerMessageTypes;
+import common.Constants;
+import common.ServerMessageTypes;
 
 /**
  * Class responsible for handling a server connection for a client

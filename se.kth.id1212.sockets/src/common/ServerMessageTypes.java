@@ -1,4 +1,4 @@
-package sockets.common;
+package common;
 /**
  *  Enumenator types used by the server. It will only accept messages that
  * start with one of these types, and will only send responses with the 'RESPONSE'

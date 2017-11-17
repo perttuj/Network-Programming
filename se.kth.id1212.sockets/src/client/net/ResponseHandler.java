@@ -1,4 +1,4 @@
-package sockets.client.net;
+package client.net;
 /**
  * Interface for the listener which is handling callbacks from the server
  */

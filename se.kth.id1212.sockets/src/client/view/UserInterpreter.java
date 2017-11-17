@@ -1,9 +1,9 @@
-package sockets.client.view;
+package client.view;
 
 import java.io.IOException;
 import java.util.Scanner;
-import sockets.client.controller.ClientController;
-import sockets.client.net.ResponseHandler;
+import client.controller.ClientController;
+import client.net.ResponseHandler;
 
 /**
  * Class for handling all userside communication when playing

@@ -1,6 +1,6 @@
-package sockets.client.view;
+package client.view;
 
-import static sockets.common.Constants.*;
+import static common.Constants.*;
 
 /**
  *  Wrapper class for console inputs

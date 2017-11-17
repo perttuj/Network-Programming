@@ -1,4 +1,4 @@
-package sockets.server.net;
+package server.net;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -7,9 +7,9 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
-import sockets.server.controller.ServerController;
-import sockets.common.Constants;
-import sockets.common.ServerMessageTypes;
+import server.controller.ServerController;
+import common.Constants;
+import common.ServerMessageTypes;
 /**
  *  Class for handling all player actions and responses
  * for playing the hangman game

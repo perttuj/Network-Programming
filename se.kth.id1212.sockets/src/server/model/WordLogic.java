@@ -1,4 +1,4 @@
-package sockets.server.model;
+package server.model;
 
 import java.io.BufferedReader;
 import java.io.File;
