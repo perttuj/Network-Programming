@@ -225,6 +225,7 @@ public class PlayerHandler implements Runnable {
                                 newGame();
                             } else {
                                 client.respond("Continuing");
+                                client.respond(getInfo());
                             }
                         }
                         break;
@@ -316,8 +317,10 @@ public class PlayerHandler implements Runnable {
             try {
                 String[] message = fullMessage.split(Constants.DELIMETER);
                 type = ServerMessageTypes.valueOf(message[Constants.TYPE_INDEX].toUpperCase());
-                if (message.length > 1) {
+                if (message.length > Constants.MESSAGE_INDEX) {
                     body = message[Constants.MESSAGE_INDEX].toLowerCase();
+                } else {
+                    body = null;
                 }
             } catch (Throwable throwable) {
                 throw new IllegalArgumentException("Error when parsing message " + throwable);

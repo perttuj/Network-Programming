@@ -131,7 +131,6 @@ public class UserInterpreter implements Runnable {
                         break;
                     case GUESS:
                         if (connected) {
-                            safePrinter.println(line.getBody());
                             sendGuess(line.getBody());
                         } else {
                             notConnected();
