@@ -1,15 +1,16 @@
 package server.net;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 import server.controller.ServerController;
 import common.Constants;
 import common.ServerMessageTypes;
+import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
+import java.util.ArrayDeque;
+import java.util.Queue;
+import java.util.concurrent.ForkJoinPool;
 /**
  *  Class for handling all player actions and responses
  * for playing the hangman game
@@ -17,33 +18,77 @@ import common.ServerMessageTypes;
  */
 public class PlayerHandler implements Runnable {
     
-    private final Socket playerSocket;
     private final ServerController contr;
-    private String currentWord;
-    private String hiddenWord;
+    
+    // connection info
+    private final SocketChannel playerChannel;
+    private ByteBuffer reader = ByteBuffer.allocateDirect(4096); // replace value with constant
+    private Queue<String> responses = new ArrayDeque<>();
+    private volatile boolean connected; // not needed
+    
+    // game info
     private int currentScore;
     private int tries;
-    private volatile boolean connected;
-    private boolean playing;
+    private boolean playing; 
+    private volatile String message = null;
+    private String currentWord;
+    private String hiddenWord;
     private List<String> guesses;
     
-    public PlayerHandler (ServerController controller, Socket player) {
-        this.playerSocket = player; 
+    public PlayerHandler (SocketChannel channel, ServerController controller) {
+        this.playerChannel = channel; 
         this.contr = controller;
         this.connected = true;
         this.currentScore = 0;
     }
-    /**
-     * Closes the user socket, ending the life of the running 
-     * 'PlayerHandler' thread and closing the socket.
-     */
-    private void disconnect() {
-        try {
-            playerSocket.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+    public void sendAll() throws IOException {
+        synchronized (responses) {
+            if (!responses.isEmpty()) {
+                for (String s : responses) {
+                    send(s);
+                }
+            }
+            responses.clear();
         }
+    }
+    protected void read() throws IOException {
+        reader.clear();
+        int bytesRead = playerChannel.read(reader);
+        if (bytesRead == -1) {
+            throw new IOException("Failed to read from player channel");
+        }
+        message = extractFromBuffer(reader);
+        ForkJoinPool.commonPool().execute(this);
+    }
+    private void send(String s) throws IOException {
+        send(ByteBuffer.wrap(s.getBytes()));
+    }
+    /**
+     * Send the specified ByteBuffer to the player
+     * @param message   the ByteBuffer message to send
+     * @throws IOException  if writing to the channel fails
+     * @throws CorruptMessageException  if the SocketChannel.write(ByteBuffer[] msg) fails to write the whole message
+     */
+    private void send(ByteBuffer message) throws IOException {
+        playerChannel.write(message);
+        if (message.remaining() > 0) {
+            //throw new CorruptMessageException, whole message was not succesfully sent
+        }
+    }
+    private void add(String s) {
+        synchronized (responses) {
+            responses.add(s);
+        }
+    }
+    protected void disconnect() throws IOException {
+        playerChannel.close();
         connected = false;
+    }
+    private String extractFromBuffer(ByteBuffer buf) {
+        buf.flip();
+        byte[] bytes = new byte[buf.remaining()];
+        buf.get(bytes);
+        return new String(bytes);
     }
     /**
      * returns true if the user has guessed all letters correctly
@@ -53,8 +98,8 @@ public class PlayerHandler implements Runnable {
         return currentWord.equals(hiddenWord);
     }
     /**
-     * Message when succesfully guessing a word
-     * @return  the gamedone screen text
+     * Message when successfully guessing a word
+     * @return  the game done screen text
      */
     private String gameDone() {
         currentScore++;
@@ -65,7 +110,7 @@ public class PlayerHandler implements Runnable {
     }
     /**
      * Message when running out of tries when guessing the word
-     * @return      the gameover screen text
+     * @return      the game over screen text
      */
     private String gameOver() {
         currentScore--;
@@ -76,7 +121,7 @@ public class PlayerHandler implements Runnable {
     /**
      * Generates a response for a correct guess, if the word is now complete,
      * generate a gameDone message.
-     * @return      a proper message for a succesful guess
+     * @return      a proper message for a successful guess
      */
     private String succesfulGuess() {
         if (completedWord()) {
@@ -86,8 +131,8 @@ public class PlayerHandler implements Runnable {
         return response;
     }
     /**
-     * String when a guess is unsuccesful (incorrect guess, not to be confused with invalid guess)
-     * @return      response for an unsuccesful guess
+     * String when a guess is unsuccessful (incorrect guess, not to be confused with invalid guess)
+     * @return      response for an unsuccessful guess
      */
     private String unsuccesfulGuess() {
         String response = ("Guess unsuccesful! Current word: " + hiddenWord + ", tries remaining: " + tries);
@@ -104,7 +149,7 @@ public class PlayerHandler implements Runnable {
     /**
      * Initiates a new game, generating a new word from the server
      * and replacing existing values with initial values.
-     * Hidden word is replaced with dashes (-) equal to the word to be guessed's length,
+     * Hidden word is replaced with dashes (-) equal to the word to be guessed length,
      * currentWord is replaced with the new word and tries is replaced the length of 
      * the new word (word of length 5 has 5 guesses)
      */
@@ -119,8 +164,8 @@ public class PlayerHandler implements Runnable {
         guesses = new ArrayList<String>();
     }
     /**
-     * checks if the response from the model was succesful (correct guess)
-     * or unsuccesful (incorrect guess)
+     * checks if the response from the model was successful (correct guess)
+     * or unsuccessful (incorrect guess)
      * @param newHidden     the updated hidden word received from the model
      * @return              true or false, (correct or incorrect guess)
      */
@@ -183,22 +228,6 @@ public class PlayerHandler implements Runnable {
         }
     }
     /**
-     * Creates a new ClientMessenger object for handling input and output streams from the user
-     * @param client    The client socket to read and write from/to
-     * @param flush     If autoflush is to be used when writing to the user
-     * @return          a new ClientMessenger object
-     * @throws IOException  if reading from the clientSocket's input or output stream is unsuccesful
-     */
-    private ClientMessenger newMessenger(Socket client, boolean flush) throws IOException {
-        try {
-            BufferedReader clientReader = new BufferedReader(new InputStreamReader(client.getInputStream()));
-            PrintWriter clientWriter = new PrintWriter(client.getOutputStream(), flush); 
-            return new ClientMessenger(clientReader, clientWriter, connected);
-        } catch (IOException e) {
-            throw new IOException("Error when creating output and inputstreams: " + e);
-        }
-    }
-    /**
      * Main method run by the users serverside 'PlayerHandler' thread.
      * The thread stays in the while loop until a disconnect is initiated,
      * after which it simply exits.
@@ -206,27 +235,19 @@ public class PlayerHandler implements Runnable {
     @Override
     public void run() {
         try {
-            boolean autoFlush = true;
-            ClientMessenger client = newMessenger(playerSocket, autoFlush);
-            while (connected) {
-                Message msg = new Message(client.readLine());
+            Message msg = new Message(message);
+            message = null;
                 switch (msg.type) {
                     case NEWWORD:
                         if (!playing) {
-                            client.respond("Starting new game");
+                            String s = "starting new game";
+                            add(s);
                             playing = true;
                             newGame();
-                            client.respond(getInfo());
+                            add(getInfo());
                         } else {
-                            client.respond("Already playing. Start a new game anyway? YES/NO (Score will be decremented if a new game is started)");
-                            String line = client.readLine().toUpperCase();
-                            if (line.contains("YES")) {
-                                client.respond("Starting new game");
-                                newGame();
-                            } else {
-                                client.respond("Continuing");
-                                client.respond(getInfo());
-                            }
+                            String s = "Already playing. To start a new game, type 'STOP'";
+                            add(s);
                         }
                         break;
                     case DISCONNECT:
@@ -234,74 +255,28 @@ public class PlayerHandler implements Runnable {
                         break;
                     case GUESS:
                         if (!playing) {
-                            client.respond("Currently not playing. Write 'NEWWORD' to start a new game");
+                            add("Currently not playing. Write 'NEWWORD' to start a new game");
                             break;
                         }
                         if (msg.body == null) {
-                            client.respond("error when parsing msg body, please try again");
+                            add("error when parsing msg body, please try again");
                         } else {
-                            client.respond(guess(msg.body));
+                            add(guess(msg.body));
                         }
                         break;
                     case RESPONSE:
-                        client.respond("Illegal type - should only be used by the server for responses");
+                        add("Illegal type - should only be used by the server for responses");
                         break;
                     default:
                         throw new IllegalArgumentException("Error when parsing message: " + msg.fullMsg);
                 }
-            }
-            client.disconnected();
         } catch (IOException e) {
-            disconnect();
-            System.out.println("Disconnecting..");
-        }
-    }
-    /**
-     * Class used by the PlayerHandler to message and read from the user.
-     * The specified BufferedReader and PrintWriter need to be pre-defined 
-     * from the user socket when creating a new ClientMessenger.
-     */
-    private static class ClientMessenger {
-        
-        private BufferedReader clientReader;
-        private PrintWriter clientWriter;
-        private volatile boolean connected;
-        
-        private ClientMessenger(BufferedReader reader, PrintWriter writer, boolean connected) {
-            clientReader = reader;
-            clientWriter = writer;
-            this.connected = connected;
-        }
-        /**
-         * Send a response to the user in correct format
-         * @param message   The message to be sent
-         */
-        private void respond(String message) {
-            if (connected) {
-                clientWriter.println(ServerMessageTypes.RESPONSE.toString() + Constants.DELIMETER + message);
-            }
-        }
-        /**
-         * Read a line from the user socket
-         * @return  the line read from the user
-         * @throws IOException  if the socket is closed while waiting for a read
-         */
-        private String readLine() throws IOException {
-            if (!connected)
-                return null;
-            return clientReader.readLine();
-        }
-        /**
-         * Change the boolean to false when disconnected, 
-         * preventing further reads and writes
-         */
-        private void disconnected() {
-            connected = false;
+            System.out.println("Disconnecting.." + e);
         }
     }
     /**
      * Class for handling different parts of a message, this includes:
-     * Message type, message body and the origianl fullMsg
+     * Message type, message body and the original fullMsg
      */
     private static class Message {
         private ServerMessageTypes type;
@@ -318,7 +293,7 @@ public class PlayerHandler implements Runnable {
                 String[] message = fullMessage.split(Constants.DELIMETER);
                 type = ServerMessageTypes.valueOf(message[Constants.TYPE_INDEX].toUpperCase());
                 if (message.length > Constants.MESSAGE_INDEX) {
-                    body = message[Constants.MESSAGE_INDEX].toLowerCase();
+                    body = message[Constants.MESSAGE_INDEX].toLowerCase().trim();
                 } else {
                     body = null;
                 }

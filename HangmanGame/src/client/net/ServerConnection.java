@@ -8,35 +8,33 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import common.Constants;
 import common.ServerMessageTypes;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.SocketChannel;
 
 /**
  * Class responsible for handling a server connection for a client
  * @author Perttu Jääskeläinen
  */
-public class ServerConnection {
+public class ServerConnection implements Runnable {
     private static final int TIMEOUT_USER_SOCKET = 1800000;   // User socket timeout time
     private static final int TIMEOUT_SERVER_SOCKET = 30000;   // Timeout for server socket
-    private Socket socket;
+    private SocketChannel socket;
+    private Selector selector;
     private PrintWriter toServer;
     private BufferedReader fromServer;
     private volatile boolean connected;
-    
-    /**
-     * Method for connecting the user to a specified host and port
-     * @param host  the IP-number of the server
-     * @param port  the portnumber of the server
-     * @param serverResponseHandler ResponseHandler which is passed to a listener, which handles callbacks
-     * @throws IOException if connecting the socket to the defined host and port fails
-     */
+
     public void connect(String host, int port, ResponseHandler serverResponseHandler) throws IOException {
-        socket = new Socket();
-        socket.connect(new InetSocketAddress(host, port), TIMEOUT_SERVER_SOCKET);
-        socket.setSoTimeout(TIMEOUT_USER_SOCKET);
-        connected = true;
-        boolean autoFlush = true;
-        toServer = new PrintWriter(socket.getOutputStream(), autoFlush);
-        fromServer = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        new Thread(new Listener(serverResponseHandler)).start();
+        socket = SocketChannel.open();
+        socket.configureBlocking(false);
+        socket.bind(new InetSocketAddress(host, port));
+        socket.register(selector, SelectionKey.OP_CONNECT);
+        new Thread(this).start();
+    }
+    @Override
+    public void run() {
+        
     }
     /**
      * Disconnect from the server, initiated by the user.
@@ -89,7 +87,7 @@ public class ServerConnection {
         }
         /**
          * Keep listening for messages, if received print to user
-         * If connection lost, also notyify the user
+         * If connection lost, also notify the user
          */
         @Override
         public void run() {

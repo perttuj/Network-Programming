@@ -6,7 +6,7 @@ import client.controller.ClientController;
 import client.net.ResponseHandler;
 
 /**
- * Class for handling all userside communication when playing
+ * Class for handling all user side communication when playing
  * the Hangman Game
  * @author Perttu Jääskeläinen
  */
