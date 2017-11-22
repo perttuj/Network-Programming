@@ -1,9 +1,8 @@
 package client.view;
 
-import java.io.IOException;
 import java.util.Scanner;
-import client.controller.ClientController;
 import client.net.ResponseHandler;
+import client.net.ServerConnection;
 
 /**
  * Class for handling all user side communication when playing
@@ -20,7 +19,7 @@ public class UserInterpreter implements Runnable {
     private int port = 8080;
     private boolean running = false;
     private boolean connected;
-    private ClientController contr;
+    private ServerConnection server;
 
     /**
      * The start method for the class, initiated from the Startup.java class.
@@ -32,7 +31,7 @@ public class UserInterpreter implements Runnable {
             return;
         }
         running = true;
-        contr = new ClientController();
+        server = new ServerConnection();
         new Thread(this).start();
     }
     /**
@@ -42,7 +41,7 @@ public class UserInterpreter implements Runnable {
     private void disconnect() {
         connected = false;
         safePrinter.println("Disconnecting");
-        contr.disconnect();
+        server.disconnect();
     }
     /**
      * Quits running the program entirely
@@ -50,7 +49,7 @@ public class UserInterpreter implements Runnable {
     private void quit() {
         running = false;
         if (connected) {
-            contr.disconnect();   
+            server.disconnect();   
         }
         safePrinter.println("Quitting");
     }
@@ -84,7 +83,7 @@ public class UserInterpreter implements Runnable {
             }
         }
         safePrinter.println("Connecting..");
-        contr.connect(ip, port, new ConsoleOutput());
+        server.connect(ip, port);
         connected = true;
     }
     /**
@@ -97,14 +96,14 @@ public class UserInterpreter implements Runnable {
      * Starts a new game, generating a new word for the user
      */
     private void startGame() {
-        contr.newGame();
+        server.newGame();
     }
     /**
      * Sends a guess to the server
      * @param guess the guess to be sent
      */
     private void sendGuess(String guess) {
-        contr.sendGuess(guess);
+        server.sendGuess(guess);
     }
     /**
      * Main method for reading user input. Each row is saved as a new 'CommandLine'
@@ -113,6 +112,7 @@ public class UserInterpreter implements Runnable {
     @Override
     public void run() {
         safePrinter.println(usageMessage("Welcome!"));
+        server.registerHandler(new ConsoleOutput());
         while (running) {
             try {
                 CommandLine line = new CommandLine(readLine());
@@ -155,6 +155,7 @@ public class UserInterpreter implements Runnable {
                 }
             } catch (Exception e) {
                 safePrinter.println("Error when reading from console");
+                e.printStackTrace();
             }
         }
     }

@@ -3,13 +3,13 @@ package server.net;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import server.controller.ServerController;
 import common.Constants;
 import common.ServerMessageTypes;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.StringJoiner;
 import java.util.concurrent.ForkJoinPool;
 /**
  *  Class for handling all player actions and responses
@@ -18,13 +18,13 @@ import java.util.concurrent.ForkJoinPool;
  */
 public class PlayerHandler implements Runnable {
     
-    private final ServerController contr;
+    private final GameServer server;
     
     // connection info
     private final SocketChannel playerChannel;
     private ByteBuffer reader = ByteBuffer.allocateDirect(4096); // replace value with constant
     private Queue<String> responses = new ArrayDeque<>();
-    private volatile boolean connected; // not needed
+    private volatile boolean writing;
     
     // game info
     private int currentScore;
@@ -35,21 +35,26 @@ public class PlayerHandler implements Runnable {
     private String hiddenWord;
     private List<String> guesses;
     
-    public PlayerHandler (SocketChannel channel, ServerController controller) {
+    public PlayerHandler (SocketChannel channel, GameServer server) {
         this.playerChannel = channel; 
-        this.contr = controller;
-        this.connected = true;
+        this.server = server;
+        this.writing = false;
         this.currentScore = 0;
     }
     public void sendAll() throws IOException {
         synchronized (responses) {
             if (!responses.isEmpty()) {
-                for (String s : responses) {
-                    send(s);
+                StringBuilder sb = new StringBuilder(ServerMessageTypes.RESPONSE.toString() + Constants.DELIMETER);
+                for (String b : responses) {
+                    sb.append(b + " ");
                 }
+                server.print("writing : " + sb.toString());
+                ByteBuffer msg = ByteBuffer.wrap(sb.toString().getBytes());
+                playerChannel.write(msg);
             }
             responses.clear();
         }
+        writing = false;
     }
     protected void read() throws IOException {
         reader.clear();
@@ -58,31 +63,14 @@ public class PlayerHandler implements Runnable {
             throw new IOException("Failed to read from player channel");
         }
         message = extractFromBuffer(reader);
+        server.print("read msg: " + message);
         ForkJoinPool.commonPool().execute(this);
     }
-    private void send(String s) throws IOException {
-        send(ByteBuffer.wrap(s.getBytes()));
-    }
-    /**
-     * Send the specified ByteBuffer to the player
-     * @param message   the ByteBuffer message to send
-     * @throws IOException  if writing to the channel fails
-     * @throws CorruptMessageException  if the SocketChannel.write(ByteBuffer[] msg) fails to write the whole message
-     */
-    private void send(ByteBuffer message) throws IOException {
-        playerChannel.write(message);
-        if (message.remaining() > 0) {
-            //throw new CorruptMessageException, whole message was not succesfully sent
-        }
-    }
-    private void add(String s) {
-        synchronized (responses) {
-            responses.add(s);
-        }
+    protected void add(String s) {
+        responses.add(s);
     }
     protected void disconnect() throws IOException {
         playerChannel.close();
-        connected = false;
     }
     private String extractFromBuffer(ByteBuffer buf) {
         buf.flip();
@@ -154,7 +142,7 @@ public class PlayerHandler implements Runnable {
      * the new word (word of length 5 has 5 guesses)
      */
     private void newGame() {
-        currentWord = contr.getWord();
+        currentWord = server.contr.getWord();
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < currentWord.length(); i++) {
             sb.append("-");
@@ -210,7 +198,7 @@ public class PlayerHandler implements Runnable {
             return "You already made the same guess, try a new letter or word!";
         }
         guesses.add(guess);
-        String newHidden = contr.processGuess(guess, currentWord, hiddenWord);
+        String newHidden = server.contr.processGuess(guess, currentWord, hiddenWord);
         if (newHidden == null) {
             return invalidGuess();
         }
@@ -227,6 +215,39 @@ public class PlayerHandler implements Runnable {
             }
         }
     }
+    private void writable() {
+        server.writable(playerChannel);
+        writing = true;
+    }
+    private void guess(Message msg) {
+        if (!playing) {
+            add("Currently not playing. Write 'NEWWORD' to start a new game");
+        } else if (msg.body == null) {
+            add("error when parsing msg body, please try again");
+        } else {
+            add(guess(msg.body));
+        }
+        server.print("guessing done: " + responses.toString());
+        writable();
+    }
+    private void newword() {
+        if (!playing) {
+            String s = "starting new game";
+            add(s);
+            playing = true;
+            newGame();
+            add(getInfo());
+        } else {
+            String s = "Already playing. To start a new game, type 'STOP'";
+            add(s);
+        }
+        writable();
+    }
+    private void illegalType(Message msg, String desc) {
+        String s = desc == null ? "" : desc;
+        add("Illegal type " + msg.type + s);
+        writable();
+    }
     /**
      * Main method run by the users serverside 'PlayerHandler' thread.
      * The thread stays in the while loop until a disconnect is initiated,
@@ -236,36 +257,20 @@ public class PlayerHandler implements Runnable {
     public void run() {
         try {
             Message msg = new Message(message);
+            server.print("handler msg type, body: " + msg.type + ", " + msg.body);
             message = null;
                 switch (msg.type) {
                     case NEWWORD:
-                        if (!playing) {
-                            String s = "starting new game";
-                            add(s);
-                            playing = true;
-                            newGame();
-                            add(getInfo());
-                        } else {
-                            String s = "Already playing. To start a new game, type 'STOP'";
-                            add(s);
-                        }
+                        newword();
                         break;
                     case DISCONNECT:
                         disconnect();
                         break;
                     case GUESS:
-                        if (!playing) {
-                            add("Currently not playing. Write 'NEWWORD' to start a new game");
-                            break;
-                        }
-                        if (msg.body == null) {
-                            add("error when parsing msg body, please try again");
-                        } else {
-                            add(guess(msg.body));
-                        }
+                        guess(msg);
                         break;
                     case RESPONSE:
-                        add("Illegal type - should only be used by the server for responses");
+                        illegalType(msg, "should only be used by the server for responses");
                         break;
                     default:
                         throw new IllegalArgumentException("Error when parsing message: " + msg.fullMsg);

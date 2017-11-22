@@ -1,19 +1,15 @@
 package server.net;
 
+import common.Constants;
+import common.ServerMessageTypes;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketException;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayDeque;
-import java.util.Queue;
 import java.util.Set;
 import server.controller.ServerController;
 /**
@@ -27,12 +23,17 @@ public class GameServer {
     //private final int   SOCKET_TIMEOUT  = 1800000;      // time before timing out a connection, unused in socket channels
     private Selector selector;
     private ServerSocketChannel server;
-    private final ServerController contr = new ServerController();
+    protected final ServerController contr = new ServerController();
     
     public static void main (String[] args) {
         GameServer server = new GameServer();
         server.parseArgs(args);
         server.serve();
+    }
+    protected void writable(SocketChannel playerChannel) {
+        System.out.println("enabling writing");
+        playerChannel.keyFor(selector).interestOps(SelectionKey.OP_WRITE);
+        selector.wakeup();
     }
     /**
      * Initialize selector
@@ -40,6 +41,9 @@ public class GameServer {
      */
     private void openSelector() throws IOException {
         selector = Selector.open();
+    }
+    protected void print(String s) {
+        System.out.println(s);
     }
     /**
      * Start the server, making it nonblocking and accepting new connections
@@ -57,16 +61,18 @@ public class GameServer {
      * @param k the key which is to be accepted
      * @throws IOException  if getting the channel or opening a SocketChannel fails
      */
-    private void acceptKey(SelectionKey k) throws IOException{
+    private void acceptKey(SelectionKey k) throws IOException   {
+        System.out.println("accepting");
         ServerSocketChannel serverChannel = (ServerSocketChannel) k.channel();
         SocketChannel clientChannel = serverChannel.accept();
-        PlayerHandler handler = new PlayerHandler(clientChannel, contr);
+        PlayerHandler handler = new PlayerHandler(clientChannel, this);
         clientChannel.configureBlocking(false);
-        clientChannel.register(selector, SelectionKey.OP_WRITE, handler);
+        clientChannel.register(selector, SelectionKey.OP_READ, handler);
         clientChannel.setOption(StandardSocketOptions.SO_LINGER, LINGER_TIME);
     }
     private void readFrom(SelectionKey k) throws IOException {
         PlayerHandler player = (PlayerHandler) k.attachment();
+        System.out.println("reading");
         try {
             player.read();
         } catch (IOException e) {
@@ -76,6 +82,7 @@ public class GameServer {
     }
     private void sendTo(SelectionKey k) {
         PlayerHandler player = (PlayerHandler) k.attachment();
+        System.out.println("writing");
         try {
             player.sendAll();
         } catch (IOException e) {
@@ -92,7 +99,9 @@ public class GameServer {
             openSelector();
             startServer();
             while (true) {
+                System.out.println("sleeping b4 select");
                 selector.select();
+                System.out.println("waking up after select");
                 Set<SelectionKey> set = selector.selectedKeys();
                 for (SelectionKey k : set) {
                     set.remove(k);
