@@ -8,21 +8,25 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 /**
- *  WordLogic for handling everything to do with generating words, guessing words or letters
- and reading from the word file
+ * WordLogic for handling everything to do with generating words, guessing words
+ * or letters and reading from the word file
+ *
  * @author Perttu Jääskeläinen
  */
 public class WordLogic {
+
     private final String WORDS_FILE = "resources/words.txt";
     private ArrayList<String> words;
-    
-    public WordLogic () {
+
+    public WordLogic() {
         indexWords(readFile(WORDS_FILE));
     }
+
     /**
      * Attempts to read the specified file and return a buffered reader for it
-     * @param path  the path where the file is to be found
-     * @return      the buffered reader
+     *
+     * @param path the path where the file is to be found
+     * @return the buffered reader
      */
     private BufferedReader readFile(String path) {
         try {
@@ -33,8 +37,10 @@ public class WordLogic {
         }
         return null;
     }
+
     /**
      * Index all the words read from the BufferedReader into an arrayList
+     *
      * @param reader the BufferedReader to read from
      */
     private void indexWords(BufferedReader reader) {
@@ -46,23 +52,28 @@ public class WordLogic {
                 word = reader.readLine();
             }
         } catch (IOException ex) {
-           ex.printStackTrace();
+            ex.printStackTrace();
         }
     }
+
     /**
      * Generate a random index number and return the word at the index
-     * @return a randomized word from the list of words found in the defined WordFile path
+     *
+     * @return a randomized word from the list of words found in the defined
+     * WordFile path
      */
     public String getWord() {
         int index = (int) (Math.random() * words.size());
         return words.get(index);
     }
+
     /**
      * Replaces dashes in the hidden word with the guessed letter
-     * @param letter    the letter to be inserted into the hidden word
-     * @param word      the word to be guessed
-     * @param current   the current hidden word
-     * @return          the updated hidden word
+     *
+     * @param letter the letter to be inserted into the hidden word
+     * @param word the word to be guessed
+     * @param current the current hidden word
+     * @return the updated hidden word
      */
     private String replaceAll(char letter, String word, String current) {
         StringBuilder sb = new StringBuilder();
@@ -76,14 +87,16 @@ public class WordLogic {
         }
         return sb.toString();
     }
+
     /**
      * Checks if the word to be guessed contains the guessed char. If so,
-     * replace all dashes from the hidden word where the letter is found in
-     * the word to be guessed.
-     * @param word      the word to be guessed by the user
-     * @param guess     the guessed character
-     * @param hidden    the current hidden word
-     * @return          the updated hidden word
+     * replace all dashes from the hidden word where the letter is found in the
+     * word to be guessed.
+     *
+     * @param word the word to be guessed by the user
+     * @param guess the guessed character
+     * @param hidden the current hidden word
+     * @return the updated hidden word
      */
     private String guessChar(String word, String guess, String hidden) {
         String newHidden = hidden;
@@ -92,26 +105,48 @@ public class WordLogic {
         }
         return newHidden;
     }
+
     /**
      * Checks if the users guess of the complete word is correct
-     * @param word      the word to be guessed
-     * @param guess     the users guess
-     * @param hidden    the current hidden word
-     * @return          the hidden word or the correctly guessed word
+     *
+     * @param word the word to be guessed
+     * @param guess the users guess
+     * @param hidden the current hidden word
+     * @return the hidden word or the correctly guessed word
      */
     private String guessWord(String word, String guess, String hidden) {
-        if (word.equals(guess)) 
-                return word;
-        /*else*/return hidden;
+        if (word.equals(guess)) {
+            return word;
+        }
+        /*else*/
+        return hidden;
+    }
+    /**
+     * Checks if the given string only contains characters
+     *
+     * @param s the string to check
+     * @return true if only characters are found, else false
+     */
+    private boolean isLetter(String s) {
+        for (char c : s.toCharArray()) {
+            if (!Character.isLetter(c)) {
+                return false;
+            }
+        }
+        return true;
     }
     /**
      * Called by controller to process a user guess
-     * @param guess     the users guess
-     * @param word      the word to be guessed
-     * @param hidden    the current hidden word
-     * @return          the updated hidden word
+     *
+     * @param guess the users guess
+     * @param word the word to be guessed
+     * @param hidden the current hidden word
+     * @return the updated hidden word
      */
     public String processGuess(String guess, String word, String hidden) {
+        if (!isLetter(guess)) {
+            return null;
+        }
         String guess1 = guess.toLowerCase();
         if (guess.length() == 1) {
             return guessChar(word, guess1, hidden);
@@ -119,6 +154,6 @@ public class WordLogic {
             return guessWord(word, guess1, hidden);
         } else {
             return null;
-        } 
+        }
     }
 }

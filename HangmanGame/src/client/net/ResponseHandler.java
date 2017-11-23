@@ -1,6 +1,6 @@
 package client.net;
 /**
- * Interface for the listener which is handling callbacks from the server
+ * Interface for the listener which is handling responses from the server
  */
 public interface ResponseHandler {
     /**

@@ -13,182 +13,228 @@ import java.util.StringJoiner;
 
 /**
  * Class responsible for handling a server connection for a client
+ *
  * @author Perttu Jääskeläinen
  */
 public class ServerConnection implements Runnable {
-    private ByteBuffer serverReaderBuf = ByteBuffer.allocateDirect(4096); // replace with constant
-    private String messageFromUser = null;
-    private SocketChannel channel;
-    private Selector selector;
-    private Listener listener;
-    private InetSocketAddress address;
+
+    private ByteBuffer      serverReaderBuf = ByteBuffer.allocateDirect(Constants.MAX_MESSAGE_SIZE);
+    private SocketChannel   channel;
+    private Selector        selector;
+    private InetSocketAddress   address;
+    private ResponseHandler     handler;
+    
     private volatile boolean writing = false;
     private volatile boolean connected;
-    private volatile boolean timeToSend;
+    private String messageFromUser = null;
     
+
+    /**
+     * Register an output handler, where responses from the server are sent
+     *
+     * @param serverResponseHandler the handler which responses are sent to
+     */
     public void registerHandler(ResponseHandler serverResponseHandler) {
-        this.listener = new Listener(serverResponseHandler);
+        this.handler = serverResponseHandler;
     }
+
+    /**
+     * Connect to the specified host and port, creating a new thread for
+     * handling the connection
+     *
+     * @param host the IP to connect to
+     * @param port the port to connect to
+     */
     public void connect(String host, int port) {
         address = new InetSocketAddress(host, port);
         new Thread(this).start();
     }
+
+    private void notConnected() {
+        handler.handleMsg("not connected");
+    }
+
     /**
-     * Constructs the users guess into a server-type message.
-     * Can fail if a command is already being processed, 
-     * @param guess 
+     * Transforms the users guess into an acceptable server-type message. Can
+     * fail if a command is already being processed, returning without changing
+     * anything.
+     *
+     * @param guess the user guess to be transformed
      */
     public void sendGuess(String guess) {
         StringJoiner joiner = new StringJoiner(Constants.DELIMETER);
         joiner.add(ServerMessageTypes.GUESS.toString());
         joiner.add(guess);
-        System.out.println(joiner.toString());
         setMsg(joiner.toString());
     }
+
+    /**
+     * Transforms a 'newgame' command into an acceptable server-type message Can
+     * fail if a command is already being processed, returning without changing
+     * anything
+     */
     public void newGame() {
         setMsg(ServerMessageTypes.NEWWORD.toString());
     }
+
     /**
      * Disconnect from the server, initiated by the user.
      */
     public void disconnect() {
         try {
-            channel.close();
-            channel = null;
-            connected = false;
+            if (!connected) {
+                notConnected();
+                return;
+            } else {
+                channel.close();
+                handler.handleMsg("closed connection");
+            }
         } catch (IOException e) {
-            listener.sendMsg("failed when closing channel - disconnected" + e.toString());
+            handler.handleMsg("error when closing channel: " + e.toString());
+        } finally {
             channel = null;
             connected = false;
-        }  
+        }
     }
+
     @Override
     public void run() {
         try {
             startConnection();
-            openSelector();
             while (connected) {
                 selector.select();
-                if (timeToSend) {
-                    channel.keyFor(selector).interestOps(SelectionKey.OP_WRITE);
-                    timeToSend = false;
-                }
                 Set<SelectionKey> set = selector.selectedKeys();
                 for (SelectionKey k : set) {
                     set.remove(k);
                     if (!k.isValid()) {
-                        System.out.println("not valid");
                         continue;
-                    } 
+                    }
                     if (k.isConnectable()) {
-                        System.out.println("finishing connection");
                         finishConnection(k);
                     } else if (k.isReadable()) {
-                        System.out.println("reading from serv");
-                        readFromServer(k);
+                        readFromServer();
                     } else if (k.isWritable()) {
-                        System.out.println("writing to serv");
                         writeToServer(k);
                     }
                 }
             }
         } catch (IOException e) {
-            listener.sendMsg("connection error - exiting\n" + e.toString());
-            System.exit(0);
+            disconnect();
+            handler.handleMsg("connection error - exiting\n" + e.toString());
         }
     }
+
     /**
      * Start the connection, making it nonblocking and accepting new connections
-     * @throws IOException  if binding or registering values fails
+     *
+     * @throws IOException if binding or registering values fails
      */
     private void startConnection() throws IOException {
         channel = SocketChannel.open();
         channel.configureBlocking(false);
         channel.connect(address);
         connected = true;
-    }
-    /**
-     * 
-     * @param k
-     * @throws IOException 
-     */
-    private void finishConnection(SelectionKey k) throws IOException {
-        channel.finishConnect();
-        listener.sendMsg("connected to: " + address);
-    }
-    /**
-     * Initialize selector
-     * @throws IOException  if initialization fails 
-     */
-    private void openSelector() throws IOException {
         selector = Selector.open();
         channel.register(selector, SelectionKey.OP_CONNECT);
     }
+
     /**
-     * Reads from the server
-     * @throws IOException  if reading from the channel fails
+     * Finishes the specified connection, committing all registered values and
+     * configurations, then wait for a confirmation from the server
+     *
+     * @param k the SelectionKey for the connection
+     * @throws IOException if finishConnect() fails
      */
-    private void readFromServer(SelectionKey k) throws IOException {
+    private void finishConnection(SelectionKey k) throws IOException {
+        channel.finishConnect();
+        k.interestOps(SelectionKey.OP_READ);
+    }
+
+    /**
+     * Reads from the server into bytebuffer 'serverReaderBuf'
+     *
+     * @throws IOException if reading from the channel fails
+     */
+    private void readFromServer() throws IOException {
         serverReaderBuf.clear();
         int bytesRead = channel.read(serverReaderBuf);
         if (bytesRead == -1) {
             throw new IOException("reading from server failed");
         }
         String msg = extractFromBuffer(serverReaderBuf);
-        System.out.println("message received: " + msg);
-        listener.formatAndSend(msg);
+        formatAndSend(msg);
     }
+
+    /**
+     * Writes a ByteBuffer to the server, containing the user message
+     *
+     * @param k the key to change interest operation for
+     * @throws IOException if writing to the channel fails
+     */
     private void writeToServer(SelectionKey k) throws IOException {
-        System.out.println(messageFromUser);
         channel.write(ByteBuffer.wrap(messageFromUser.getBytes()));
         messageFromUser = null;
         k.interestOps(SelectionKey.OP_READ);
         writing = false;
     }
+
+    /**
+     * Extracts a String from the bytebuffer object
+     *
+     * @param buf bytebuffer object to read
+     * @return string read from bytebuffer
+     */
     private String extractFromBuffer(ByteBuffer buf) {
         buf.flip();
         byte[] bytes = new byte[buf.remaining()];
         buf.get(bytes);
         return new String(bytes);
     }
+
+    /**
+     * Sets the current user message to the message specified. If a message
+     * already exists, return, saying that only one command may be processed at
+     * a time
+     *
+     * @param msg the message to be sent to the server
+     */
     private void setMsg(String msg) {
-        if (writing) {
-            listener.sendMsg("already processing command - please wait for a response - " + messageFromUser);
+        if (!connected) {
+            notConnected();
             return;
-        }   
-        messageFromUser = msg;
+        }
+        if (writing) {
+            handler.handleMsg("already processing command - please wait for a response - ");
+            return;
+        }
         writing = true;
-        timeToSend = true;
-        System.out.println("waking up selector with: " + messageFromUser);
+        messageFromUser = msg;
+        channel.keyFor(selector).interestOps(SelectionKey.OP_WRITE);
         selector.wakeup();
     }
-    /**
-     * Listens for callbacks from the server, which are printed to the user without 
-     * going through the controller.
-     */
-    private class Listener {
-        private final ResponseHandler handler;
 
-        private Listener(ResponseHandler handler) {
-            this.handler = handler;
+    /**
+     * Formats the string received from an acceptable server-type to an user
+     * friendly message
+     *
+     * @param msg the message to format and send
+     */
+    private void formatAndSend(String msg) {
+        String formatted = format(msg);
+        handler.handleMsg(formatted);
+    }
+
+    /**
+     * Extracts the message received (without type)
+     *
+     * @param entireMsg the original format message from the server
+     * @return the message without the type included
+     */
+    private String format(String entireMsg) {
+        String[] message = entireMsg.split(Constants.DELIMETER);
+        if (ServerMessageTypes.valueOf(message[Constants.TYPE_INDEX]) == ServerMessageTypes.NEWWORD) {
+            return "NEWWORD";
         }
-        private void sendMsg(String s) {
-            handler.handleMsg(s);
-        }
-        private void formatAndSend(String s) {
-            sendMsg(format(s));
-        }
-        /**
-        * Extracts the message received (without type)
-        * @param entireMsg the original format message from the server
-        * @return  the message without the type included
-        */
-        private String format(String entireMsg) {
-            String[] message = entireMsg.split(Constants.DELIMETER);
-            if (message[0] == ServerMessageTypes.NEWWORD.toString()) {
-                return "NEWWORD";
-            }
-            return message[1];
-        }
+        return message[Constants.MESSAGE_INDEX];
     }
 }

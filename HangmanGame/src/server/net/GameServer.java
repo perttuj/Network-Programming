@@ -1,107 +1,119 @@
 package server.net;
 
-import common.Constants;
-import common.ServerMessageTypes;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
-import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Set;
 import server.controller.ServerController;
+
 /**
- *  Server for handling new connections for new players
+ * Server for handling new connections for new players
+ *
  * @author Perttu Jääskeläinen
  */
 public class GameServer {
-    
-    private int         PORT_NO         = 8080;         // default port number
-    private final int   LINGER_TIME     = 30000;        // linger time when closing socket
-    //private final int   SOCKET_TIMEOUT  = 1800000;      // time before timing out a connection, unused in socket channels
+
+    private int PORT_NO = 8080;         // default port number
+    private final int LINGER_TIME = 30000;        // linger time when closing socket
     private Selector selector;
     private ServerSocketChannel server;
     protected final ServerController contr = new ServerController();
-    
-    public static void main (String[] args) {
+
+    public static void main(String[] args) {
         GameServer server = new GameServer();
         server.parseArgs(args);
         server.serve();
     }
+
+    /**
+     * Called by a worker thread in PlayerHandler to specify that the object the
+     * thread is running in has data to send
+     *
+     * @param playerChannel the channel that is ready to be sent data
+     */
     protected void writable(SocketChannel playerChannel) {
-        System.out.println("enabling writing");
         playerChannel.keyFor(selector).interestOps(SelectionKey.OP_WRITE);
         selector.wakeup();
     }
-    /**
-     * Initialize selector
-     * @throws IOException  if initialization fails 
-     */
-    private void openSelector() throws IOException {
-        selector = Selector.open();
-    }
-    protected void print(String s) {
-        System.out.println(s);
-    }
+
     /**
      * Start the server, making it nonblocking and accepting new connections
-     * @throws IOException  if binding or registering values fails
+     *
+     * @throws IOException if binding or registering values fails
      */
     private void startServer() throws IOException {
+        selector = Selector.open();
         server = ServerSocketChannel.open();
         server.configureBlocking(false);
         server.bind(new InetSocketAddress(PORT_NO));
         server.register(selector, SelectionKey.OP_ACCEPT);
     }
+
     /**
-     * Accept a new connection and bind a Player Object to it
-     * for handling input and output for the created socket
+     * Accept a new connection and bind a PlayerHandler object to it, for
+     * handling input and output for the created SocketChannel
+     *
      * @param k the key which is to be accepted
-     * @throws IOException  if getting the channel or opening a SocketChannel fails
+     * @throws IOException if getting the channel or opening a SocketChannel
+     * fails
      */
-    private void acceptKey(SelectionKey k) throws IOException   {
-        System.out.println("accepting");
+    private void acceptKey(SelectionKey k) throws IOException {
         ServerSocketChannel serverChannel = (ServerSocketChannel) k.channel();
         SocketChannel clientChannel = serverChannel.accept();
         PlayerHandler handler = new PlayerHandler(clientChannel, this);
         clientChannel.configureBlocking(false);
-        clientChannel.register(selector, SelectionKey.OP_READ, handler);
+        clientChannel.register(selector, SelectionKey.OP_WRITE, handler);
         clientChannel.setOption(StandardSocketOptions.SO_LINGER, LINGER_TIME);
+        handler.connected();
     }
+
+    /**
+     * Reads from a channel which belongs to the specified SelectionKey
+     *
+     * @param k the key which channel is to be read
+     * @throws IOException if reading from the channel fails
+     */
     private void readFrom(SelectionKey k) throws IOException {
         PlayerHandler player = (PlayerHandler) k.attachment();
-        System.out.println("reading");
         try {
             player.read();
         } catch (IOException e) {
             player.disconnect();
             k.cancel();
-        }  
+        }
     }
-    private void sendTo(SelectionKey k) {
+
+    /**
+     * Writes to the specified SelectionKey's SocketChannel, through the
+     * PlayerHandler object
+     *
+     * @param k the SelecionKey which channel is to be written to
+     * @throws IOException if writing to the channel fails
+     */
+    private void sendTo(SelectionKey k) throws IOException {
         PlayerHandler player = (PlayerHandler) k.attachment();
-        System.out.println("writing");
         try {
             player.sendAll();
+            k.interestOps(SelectionKey.OP_READ);
         } catch (IOException e) {
-            
+            player.disconnect();
+            k.cancel();
         }
-        k.interestOps(SelectionKey.OP_READ);
     }
+
     /**
      * The main thread spends its lifetime here, accepting new connections and
-     * handling them
+     * forwarding the inputs to their respective attached PlayerHandler objects
      */
     private void serve() {
         try {
-            openSelector();
             startServer();
             while (true) {
-                System.out.println("sleeping b4 select");
                 selector.select();
-                System.out.println("waking up after select");
                 Set<SelectionKey> set = selector.selectedKeys();
                 for (SelectionKey k : set) {
                     set.remove(k);
@@ -121,12 +133,15 @@ public class GameServer {
             System.out.println("Server error");
             e.printStackTrace();
             System.exit(0);
-        }    
+        }
     }
+
     /**
-     * Used to parse arguments received when compiling the server - if a port number is not specified,
-     * use the default port number defined in this class
-     * @param args  arguments received when compiling the server
+     * Used to parse arguments received when compiling the server - if a port
+     * number is not specified, use the default port number defined in this
+     * class
+     *
+     * @param args arguments received when compiling the server
      */
     public void parseArgs(String[] args) {
         if (args.length > 0) {

@@ -1,4 +1,5 @@
 package client.view;
+
 /**
  * Defines all commands that can be performed by a user of the hangman game.
  * Also includes an description which is printed out when starting the program
@@ -6,19 +7,21 @@ package client.view;
  */
 public enum Command {
     /**
-     * Connect to the server, first param is the IP and the second is the port number
+     * Connect to the server, first param is the IP and the second is the port
+     * number
      */
     CONNECT("Connect to the server. "
             + "USAGE: 'CONNECT <IP> <PORT>' for specified IP & Port OR 'CONNECT', which will use the default IP and Port"),
     /**
-     * Specified when the user wants to make a guess for a letter or the entire word
+     * Specified when the user wants to make a guess for a letter or the entire
+     * word
      */
-    GUESS("Send a guess to the server. " 
+    GUESS("Send a guess to the server. "
             + "USAGE: 'GUESS <LETTER/WORD>'"),
     /**
      * Specified to start a new game
      */
-    NEWWORD("Start the game/request new word from server. " 
+    NEWWORD("Start the game/request new word from server. "
             + "USAGE: 'NEWWORD')"),
     /**
      * Quit the chat application.
@@ -39,10 +42,11 @@ public enum Command {
     INCORRECT_FORMAT("Specified when no correct format is entered");
     // Stores a descriptor for each enumenator
     private final String descriptor;
-    
-    private Command (String descriptor) {
+
+    private Command(String descriptor) {
         this.descriptor = descriptor;
     }
+
     public String getDescription() {
         return this.descriptor;
     }
